@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Equiterm",
+    "slug": "equiterm-app",
+    "scheme": "equiterm",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#141516"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.equiterm.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "mx.equiterm.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#141516",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Equiterm necesita acceso a tus fotos para adjuntarlas a los reportes de servicio.",
+          "cameraPermission": "Equiterm necesita la cámara para tomar fotos del servicio y adjuntarlas al reporte.",
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}
