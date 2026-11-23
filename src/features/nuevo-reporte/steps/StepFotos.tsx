@@ -2,14 +2,19 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Linking, View } from 'react-native';
 import { useResponsive } from '../../../hooks/useResponsive';
+import { preparePhoto } from '../../../lib/photos';
 import { Text, useToast } from '../../../ui';
 import { deleteDraftPhoto, persistDraftPhoto } from '../draft';
 import { PhotoActionButton, PhotoTile, StepTitle } from '../components';
 import { MAX_PHOTOS, type DraftPhoto } from '../types';
 import type { StepProps } from './StepCliente';
 
-/** Calidad JPEG: "Se comprimen para ahorrar datos". */
-const QUALITY = 0.6;
+/**
+ * Calidad con la que la cámara/galería entrega la foto. Es alta a propósito:
+ * la compresión real la hace `preparePhoto` (reduce a 1800 px y JPEG 0.7)
+ * para no comprimir dos veces.
+ */
+const QUALITY = 0.9;
 
 export function StepFotos({ draft, update }: StepProps) {
   const toast = useToast();
@@ -26,8 +31,10 @@ export function StepFotos({ draft, update }: StepProps) {
     const added: DraftPhoto[] = [];
     for (const a of assets.slice(0, MAX_PHOTOS - photos.length)) {
       try {
-        const saved = await persistDraftPhoto(a.uri);
-        added.push({ id: saved.id, uri: saved.uri, caption: '', width: a.width, height: a.height });
+        // "Se comprimen para ahorrar datos": a 1800 px, igual que las guarda el servidor.
+        const photo = await preparePhoto(a.uri, a.width, a.height);
+        const saved = await persistDraftPhoto(photo.uri);
+        added.push({ id: saved.id, uri: saved.uri, caption: '', width: photo.width || a.width, height: photo.height || a.height });
       } catch {
         toast.show({ kind: 'error', title: 'No se pudo guardar la foto', message: 'Intenta de nuevo.' });
       }
