@@ -249,9 +249,43 @@ function toPhotos(v: unknown): ReportImage[] {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Adapta campos del panel (simari-calderas) a los nombres que reconoce el detalle:
+ * - `activity.content` (formulario de actividad) → `trabajos_realizados`.
+ * - En reportes capturados en la app, `observations` guarda los hallazgos.
+ * - `origin` / `captured_at` → filas legibles en «Información adicional».
+ */
+function normalizeServerFields(data: ReportDetailData): [string, unknown][] {
+  const src = data as Record<string, unknown>;
+  const fromApp = src.origin === 'app_movil';
+  const out: [string, unknown][] = [];
+  for (const [k, v] of Object.entries(src)) {
+    if (k === 'activity' && v && typeof v === 'object' && !Array.isArray(v)) {
+      const content = (v as Record<string, unknown>).content;
+      if (nonEmpty(content)) out.push(['trabajos_realizados', content]);
+      continue;
+    }
+    if (k === 'observations' && fromApp) {
+      out.push(['hallazgos', v]);
+      continue;
+    }
+    if (k === 'origin') {
+      if (fromApp) out.push(['Origen', 'Capturado en la app']);
+      continue;
+    }
+    if (k === 'captured_at') {
+      if (typeof v === 'string' && v) out.push(['Capturado el', formatDateTime(v)]);
+      continue;
+    }
+    if (k === 'form_behavior') continue;
+    out.push([k, v]);
+  }
+  return out;
+}
+
 export function buildReportViewModel(data: ReportDetailData): ReportViewModel {
   const consumed = new Set<string>();
-  const entries = Object.entries(data);
+  const entries = normalizeServerFields(data);
   /** Primer campo no vacío cuyo nombre normalizado esté en `names`; lo marca como usado. */
   const take = (names: string[]): unknown => {
     for (const [k, v] of entries) {

@@ -3,7 +3,8 @@ import { toYmd } from '../../../lib/format';
 import { formatShortDate } from '../utils';
 import type { CustomerOption, TechnicianOption } from './options';
 
-export const SERVICE_TYPES = ['Preventivo', 'Correctivo', 'Arranque', 'Inspección'] as const;
+/** Deben existir en el catálogo service_types del panel (el servidor acepta coincidencia parcial). */
+export const SERVICE_TYPES = ['Preventivo', 'Correctivo', 'Diagnóstico', 'Reparación', 'Instalación', 'Revisión general'] as const;
 export type ServiceType = (typeof SERVICE_TYPES)[number];
 
 export interface ScheduleDraft {
@@ -17,7 +18,7 @@ export interface ScheduleDraft {
   notes: string;
 }
 
-/** Cuerpo para `POST /servicios` (el endpoint aún no existe en el servidor). */
+/** Cuerpo para `POST /servicios`. */
 export function buildServiceBody(d: ScheduleDraft) {
   return {
     title: `Servicio ${d.serviceType.toLowerCase()}`,

@@ -27,7 +27,7 @@ const MODULES: ModuleDef[] = [
   { match: /(usuario|user|role|rol)/i, label: 'Usuarios y roles', icon: 'group', order: 4 },
 ];
 
-export const DEFAULT_MODULE_KEYS = ['service-reports', 'technical-services', 'customers', 'outbox', 'users'];
+export const DEFAULT_MODULE_KEYS = ['service-reports', 'technical-services', 'clients', 'outbox', 'users'];
 
 export interface ModuleRow {
   key: string;

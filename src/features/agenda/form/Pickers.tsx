@@ -204,17 +204,19 @@ export function CustomerPickerSheet({
     if (visible) setQ('');
   }, [visible]);
   const term = q.trim().toLowerCase();
-  const filtered = useMemo(() => (term ? options.filter((o) => o.name.toLowerCase().includes(term)) : options), [options, term]);
-  const exact = options.some((o) => o.name.toLowerCase() === term);
+  // El servidor exige un cliente del catálogo (customer_id): solo se ofrecen
+  // clientes con id; los nuevos se dan de alta en el panel.
+  const known = useMemo(() => options.filter((o) => o.id !== undefined && o.id !== null), [options]);
+  const filtered = useMemo(() => (term ? known.filter((o) => o.name.toLowerCase().includes(term)) : known), [known, term]);
   const pick = (c: CustomerOption) => {
     onChange(c);
     onClose();
   };
 
   return (
-    <Sheet visible={visible} title="Cliente" subtitle="Elige un cliente o escribe uno nuevo" onClose={onClose} maxHeight={0.9}>
+    <Sheet visible={visible} title="Cliente" subtitle="Elige un cliente del catálogo" onClose={onClose} maxHeight={0.9}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
-        <SearchBar value={q} onChangeText={setQ} placeholder="Buscar o escribir cliente" autoFocus returnKeyType="done" onSubmitEditing={() => term && !exact && pick({ name: q.trim() })} />
+        <SearchBar value={q} onChangeText={setQ} placeholder="Buscar cliente" autoFocus returnKeyType="search" />
       </View>
       <FlatList
         data={filtered}
@@ -222,35 +224,12 @@ export function CustomerPickerSheet({
         keyboardShouldPersistTaps="handled"
         style={{ flexGrow: 0 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
-        ListHeaderComponent={
-          term && !exact ? (
-            <Pressable
-              onPress={() => pick({ name: q.trim() })}
-              accessibilityRole="button"
-              style={({ pressed }) => ({
-                minHeight: 56,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-                paddingHorizontal: 12,
-                borderRadius: 10,
-                backgroundColor: pressed ? colors.brandSoftPressed : colors.brandSoft,
-                marginBottom: 8,
-              })}
-            >
-              <Icon name="add_business" size={22} color="brandInk" />
-              <Text size={15} weight="semibold" color="brandInk" style={{ flex: 1 }} numberOfLines={2}>
-                Usar «{q.trim()}» como cliente nuevo
-              </Text>
-            </Pressable>
-          ) : undefined
-        }
         ListEmptyComponent={
-          !term ? (
-            <Text variant="caption" color="muted" align="center" style={{ paddingVertical: 20, paddingHorizontal: 12 }}>
-              Aún no hay clientes guardados en el teléfono. Escribe el nombre del cliente.
-            </Text>
-          ) : undefined
+          <Text variant="caption" color="muted" align="center" style={{ paddingVertical: 20, paddingHorizontal: 12 }}>
+            {term
+              ? 'No hay clientes con ese nombre. Si es nuevo, dalo de alta en el panel.'
+              : 'Aún no hay clientes en el teléfono. Conéctate a internet para cargar el catálogo.'}
+          </Text>
         }
         renderItem={({ item }) => {
           const sel = !!value && value.name === item.name;
