@@ -17,9 +17,16 @@ let current: string = ENV_API_URL;
 let override: string | null = null;
 
 export function normalizeUrl(url: string): string {
-  let u = (url ?? '').trim();
+  let u = (url ?? '').trim().replace(/\s+/g, '');
   if (!u) return '';
-  if (!/^https?:\/\//i.test(u)) u = `http://${u}`;
+  // Errores comunes al teclear: "https//", "https:/", "https;//", "Https://".
+  u = u.replace(/^(https?)[:;]?\/{1,2}/i, (_m, p: string) => `${p.toLowerCase()}://`);
+  // Sin esquema: dominio → https; IP o localhost (pruebas en la PC) → http.
+  if (!/^https?:\/\//i.test(u)) {
+    u = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?|^localhost/i.test(u) ? `http://${u}` : `https://${u}`;
+  }
+  // Si pegaron la ruta del API, quitarla (la app la agrega sola).
+  u = u.replace(/\/api(\/mobile(\/v1)?)?\/?$/i, '');
   return u.replace(/\/+$/, '');
 }
 

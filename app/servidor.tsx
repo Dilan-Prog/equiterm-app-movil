@@ -90,13 +90,13 @@ export default function ServerScreen() {
             <Icon name="dns" size={24} color="brandInk" />
           </View>
           <Text variant="small" color="muted" style={{ flex: 1 }}>
-            Normalmente la IP de la PC en la red Wi‑Fi y el puerto 8000.
+            Producción: https://equitermindustries.com.mx · Pruebas en la PC: http://IP:8000
           </Text>
         </View>
 
         <LabeledField
           label="URL del servidor"
-          hint="Ejemplo: http://192.168.1.50:8000"
+          hint="Ejemplo: https://equitermindustries.com.mx"
           value={url}
           onChangeText={(t) => {
             setUrl(t);
