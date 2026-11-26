@@ -7,11 +7,6 @@
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#141516"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "mx.equiterm.app",
@@ -53,7 +48,28 @@
           "cameraPermission": "Equiterm necesita la cámara para tomar fotos del servicio y adjuntarlas al reporte.",
           "microphonePermission": false
         }
+      ],
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#141516"
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "0e460e91-d5e1-414a-98af-fc7a1ee157a9"
+      }
+    },
+    "owner": "dilan-dev"
   }
 }
