@@ -30,7 +30,7 @@ export default function ServerScreen() {
     setTesting(true);
     setResult(null);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), 15000);
     const started = Date.now();
     try {
       const res = await fetch(`${base}${API_PREFIX}/me`, { headers: { Accept: 'application/json' }, signal: controller.signal });
@@ -42,10 +42,16 @@ export default function ServerScreen() {
       } else {
         setResult({ ok: false, text: `El servidor respondió con error ${res.status}.` });
       }
-    } catch {
+    } catch (e) {
+      const timedOut = (e as { name?: string })?.name === 'AbortError';
+      const isLocal = /^http:\/\/(\d{1,3}\.){3}\d{1,3}|localhost/i.test(base);
       setResult({
         ok: false,
-        text: 'No se pudo conectar. Revisa la IP, que el servidor esté corriendo con --host=0.0.0.0, el firewall y que estés en la misma red Wi‑Fi.',
+        text: timedOut
+          ? `El servidor no respondió en 15 s (${base}). Revisa tu internet e intenta de nuevo.`
+          : isLocal
+            ? 'No se pudo conectar. Revisa la IP, que el servidor esté corriendo con --host=0.0.0.0, el firewall y que estés en la misma red Wi‑Fi.'
+            : `No se pudo conectar con ${base}. Verifica que la dirección sea correcta (ej. https://equitermindustries.com.mx), que el teléfono tenga internet y ábrela en Safari/Chrome: ${base}${API_PREFIX}/me debe mostrar un mensaje "Unauthenticated".`,
       });
     } finally {
       clearTimeout(timer);
