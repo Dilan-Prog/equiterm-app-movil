@@ -18,6 +18,7 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="reportes/[id]" />
+      <Stack.Screen name="pdf" />
       <Stack.Screen name="reporte-nuevo" options={{ gestureEnabled: false }} />
       <Stack.Screen name="servicio-nuevo" options={{ presentation: isTablet ? 'transparentModal' : 'card' }} />
     </Stack>

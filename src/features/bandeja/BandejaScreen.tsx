@@ -6,6 +6,8 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { getOutboxSnapshot, OUTBOX_MSG, useOutbox, type FlushResult, type OutboxEntry } from '../../lib/outbox';
 import { useTheme } from '../../theme';
 import { Button, ConfirmDialog, EmptyState, Header, OutboxItem, SectionLoader, useToast } from '../../ui';
+import { canGenerateLocalPdf } from '../pdf/localPdf';
+import { useLocalReportPdf } from '../pdf/useLocalReportPdf';
 import { entryIcon, entrySubtitle, entryTitle, uiStatus } from './format';
 import { OutboxDetailDialog } from './OutboxDetailDialog';
 import { OutboxSummaryCard } from './OutboxSummaryCard';
@@ -22,6 +24,7 @@ export function BandejaScreen() {
   const [detail, setDetail] = useState<OutboxEntry | null>(null);
   const [toDelete, setToDelete] = useState<OutboxEntry | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const localPdf = useLocalReportPdf();
 
   // Mantener sincronizada la insignia de la pestaña (OutboxContext lee la cola cada 15 s).
   const unsentKey = ob.items.map((i) => `${i.id}:${i.status}`).join('|');
@@ -123,6 +126,19 @@ export function BandejaScreen() {
               errorMessage={item.lastError}
               icon={entryIcon(item)}
               onRetry={item.status === 'error' ? () => void retry(item) : undefined}
+              action={
+                canGenerateLocalPdf(item)
+                  ? {
+                      label: 'Ver PDF',
+                      icon: 'picture_as_pdf',
+                      loading: localPdf.busyId === item.id,
+                      loadingLabel: 'Generando…',
+                      disabled: !!localPdf.busyId && localPdf.busyId !== item.id,
+                      accessibilityLabel: 'Ver PDF provisional del reporte',
+                      onPress: () => void localPdf.open(item),
+                    }
+                  : undefined
+              }
               onPress={() => setDetail(item)}
             />
           )}
@@ -137,6 +153,14 @@ export function BandejaScreen() {
         entry={liveDetail}
         onClose={() => setDetail(null)}
         onRetry={(e) => void retry(e)}
+        pdfLoading={!!liveDetail && localPdf.busyId === liveDetail.id}
+        onViewPdf={(e) => {
+          // El diálogo es modal: cerrarlo antes de abrir el visor o quedaría encima.
+          // Si falla, también cerrarlo para que se vea el aviso de error.
+          void localPdf.open(e, { beforeOpen: () => setDetail(null) }).then((ok) => {
+            if (!ok) setDetail(null);
+          });
+        }}
         onDelete={(e) => {
           setDetail(null);
           if (e.status === 'sent') void ob.remove(e.id);

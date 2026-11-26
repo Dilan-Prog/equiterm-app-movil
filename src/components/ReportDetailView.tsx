@@ -1,9 +1,11 @@
-import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useState } from 'react';
 import { Alert, Image, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { api } from '../api/client';
 import type { ReportDetail, ReportImage } from '../api/types';
+import { OfficialPdfError, OFFICIAL_PDF_MSG, PDF_NOT_SAVED_OFFLINE, useOfficialPdf } from '../features/pdf/officialPdf';
+import { openPdfViewer, sharePdf } from '../features/pdf/storage';
 import { useCachedFetch } from '../hooks/useCachedFetch';
+import { useOnline } from '../hooks/useOnline';
 import { useResponsive } from '../hooks/useResponsive';
 import { cacheKeys } from '../lib/cache';
 import {
@@ -17,7 +19,7 @@ import {
   personName,
 } from '../lib/format';
 import { fontFamily, makeStyles, useTheme } from '../theme';
-import { Button, EmptyState, SectionLoader, StatusChip } from '../ui';
+import { Button, EmptyState, Icon, SectionLoader, StatusChip } from '../ui';
 import { CachedNotice } from './CachedNotice';
 import { ImageGallery } from './ImageGallery';
 
@@ -47,7 +49,11 @@ export function ReportDetailView({ id }: { id: number | string }) {
   const fetcher = useCallback(() => api.report(id), [id]);
   const state = useCachedFetch<ReportDetail>(cacheKeys.report(id), fetcher);
   const [openingPdf, setOpeningPdf] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const online = useOnline();
   const { data, loading, refreshing, error, fromCache, savedAt, refresh, reload } = state;
+  // PDF oficial guardado; auto-guardado sólo con detalle recién traído del servidor.
+  const pdf = useOfficialPdf(data, { autoSave: !!data && !loading && !refreshing && !fromCache && online !== false, refetch: fetcher });
 
   if (!data && loading) return <SectionLoader text="Cargando reporte…" />;
   if (!data) {
@@ -61,15 +67,47 @@ export function ReportDetailView({ id }: { id: number | string }) {
     );
   }
 
+  const title = data.folio || `Reporte #${data.id}`;
+  const open = (uri: string) => openPdfViewer({ uri, title, subtitle: customerName(data.customer) || undefined });
+
+  /** «Ver PDF»: guardado → visor (sin conexión); si no, descarga y abre. */
   const openPdf = async () => {
-    if (!data.pdf_url) return;
+    if (openingPdf) return;
+    if (pdf.uri && !pdf.downloading) return open(pdf.uri);
+    if (online === false) {
+      if (pdf.uri) open(pdf.uri);
+      else Alert.alert('PDF no disponible sin conexión', PDF_NOT_SAVED_OFFLINE);
+      return;
+    }
     setOpeningPdf(true);
     try {
-      await WebBrowser.openBrowserAsync(data.pdf_url);
-    } catch {
-      Alert.alert('No se pudo abrir el PDF', 'Verifica tu conexión e intenta de nuevo.');
+      open((await pdf.ensure()).uri);
+    } catch (e) {
+      const err = e instanceof OfficialPdfError ? e : null;
+      Alert.alert(
+        'No se pudo abrir el PDF',
+        err?.kind === 'network' ? `${OFFICIAL_PDF_MSG.network}\n\n${PDF_NOT_SAVED_OFFLINE}` : err?.message ?? OFFICIAL_PDF_MSG.network,
+      );
     } finally {
       setOpeningPdf(false);
+    }
+  };
+
+  /** Comparte el archivo PDF (descargándolo si hace falta y hay red). */
+  const sharePdfFile = async () => {
+    if (sharing) return;
+    if (!pdf.uri && online === false) {
+      Alert.alert('PDF no disponible sin conexión', PDF_NOT_SAVED_OFFLINE);
+      return;
+    }
+    setSharing(true);
+    try {
+      const uri = pdf.uri ?? (await pdf.ensure()).uri;
+      if (!(await sharePdf(uri, title))) Alert.alert('No se puede compartir en este dispositivo');
+    } catch (e) {
+      Alert.alert('No se pudo compartir el PDF', e instanceof Error ? e.message : OFFICIAL_PDF_MSG.network);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -125,8 +163,23 @@ export function ReportDetailView({ id }: { id: number | string }) {
         {data.updated_at ? <HeaderRow label="Actualizado" value={formatDateTime(data.updated_at)} /> : null}
       </View>
 
-      {data.pdf_url ? (
-        <Button title="Ver PDF" icon="picture_as_pdf" onPress={openPdf} loading={openingPdf} style={{ marginTop: r.gap }} />
+      {data.pdf_url || pdf.uri ? (
+        <View style={{ marginTop: r.gap, gap: 8 }}>
+          <Button
+            title="Ver PDF"
+            icon="picture_as_pdf"
+            onPress={openPdf}
+            loading={openingPdf}
+            loadingTitle={pdf.uri ? 'Abriendo PDF…' : 'Descargando PDF…'}
+          />
+          <Button title="Compartir PDF" icon="ios_share" variant="secondary" onPress={sharePdfFile} loading={sharing} />
+          {pdf.uri ? (
+            <View style={styles.offline} accessible accessibilityLabel="PDF disponible sin conexión">
+              <Icon name="offline_pin" size={16} color="ok" />
+              <Text style={[styles.offlineText, { fontSize: r.font.xs }]}>Disponible sin conexión</Text>
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       {rows.length ? (
@@ -263,4 +316,6 @@ const useStyles = makeStyles((colors, theme) => ({
   listDetail: { color: colors.muted, fontFamily: fontFamily.regular, marginTop: 2 },
   listDetailLabel: { fontFamily: fontFamily.semibold, color: colors.ink2 },
   fieldImage: { width: '100%', height: 180, backgroundColor: colors.soft, borderRadius: 8 },
+  offline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  offlineText: { color: colors.ok, fontFamily: fontFamily.semibold },
 }));

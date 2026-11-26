@@ -72,8 +72,8 @@ import { useTheme, space, radius, fontFamily } from '../src/theme';
 | `DataGrid` | `items: {label, value}[]`, `columns` (default 2). |
 | `StepIndicator` | `steps: string[]`, `current` (0-based). |
 | `AccessCard` | `icon`, `title`, `subtitle`, `loading`, `badge`, `locked`, `onPress`. |
-| `Toast` | Presentacional: `kind`: `success \| error \| info \| warning`, `title`, `message`, `onClose`. |
-| `ToastProvider` / `useToast()` | `toast.show({ kind, title, message, duration = 3400 })`, `toast.hide()`. Ya montado en el layout raíz. |
+| `Toast` | Presentacional: `kind`: `success \| error \| info \| warning`, `title`, `message`, `onClose`, `action` (`ToastAction`: `{ label, onPress }`, botón de texto brandInk). |
+| `ToastProvider` / `useToast()` | `toast.show({ kind, title, message, duration = 3400, action })` (con `action` dura 6000 ms; al tocarla se cierra el aviso), `toast.hide()`. Ya montado en el layout raíz. |
 | `ConnectionBanner` | `state`: `offline \| reconnected`, `pendingCount`, `message`. `useConnectionBanner(online, { reconnectedMs, onReconnect })`. Ya montado globalmente. |
 | `CollapsibleHeader` | `title`, `summary`, `icon`, `expanded` / `defaultExpanded`, `onToggle`, `children`, `divider`. |
 
@@ -86,7 +86,7 @@ import { useTheme, space, radius, fontFamily } from '../src/theme';
 | `SideMenu` | `items: {key,label,icon,badge?,locked?}[]`, `activeKey`, `onSelect`, `user {name, role}`, `onUserPress`, `userActive`, `connection {online, server}`. Montado en `app/(app)/_layout.tsx` (tablet). |
 | `ReportCard` | `report: ReportSummary`, `onPress(report)`, `selected`. |
 | `ServiceCard` | `service: ServiceItem`, `duration`, `description`, `onPress`, `onDirections`, `onCreateReport` (botones ocultos si no se pasan). |
-| `OutboxItem` | `title`, `subtitle`, `status`: `pending \| sending \| sent \| failed`, `progress`, `errorMessage`, `icon`, `onRetry`, `onPress`. |
+| `OutboxItem` | `title`, `subtitle`, `status`: `pending \| sending \| sent \| failed`, `progress`, `errorMessage`, `icon`, `onRetry`, `onPress`, `action` (`OutboxItemAction`: `{ label, icon?, onPress, loading?, loadingLabel?, disabled?, accessibilityLabel? }` → botón secundario chico bajo la fila, oculto mientras `sending`; la bandeja lo usa para «Ver PDF» en reportes sin enviar). |
 | `ConfirmDialog` | `visible`, `title`, `message`, `icon`, `danger` (default true), `tone`, `confirmLabel`, `cancelLabel`, `confirmVariant`, `loading`, `onConfirm`, `onCancel`, `children`. `DialogFrame` = marco base para diálogos propios. |
 | `InactivityDialog` | `visible`, `seconds` (60), `onStay`, `onLogout`, `onTimeout`, `message`. Lleva su propia cuenta regresiva. |
 | `SignaturePad` | `onAccept({ path, width, height })` (path SVG `d`), `onClear`, `accepted`, `onDrawingChange(bool)` (desactiva el scroll del padre), `height` (220 / 300 tablet), `strokeWidth` (2.6), `placeholder`. |

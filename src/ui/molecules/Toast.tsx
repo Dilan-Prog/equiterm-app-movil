@@ -14,7 +14,14 @@ export interface ToastProps {
   message?: string;
   /** Muestra la ✕ para cerrar. */
   onClose?: () => void;
+  /** Botón de texto (brandInk) a la derecha, p. ej. «Ver PDF». */
+  action?: ToastAction;
   style?: StyleProp<ViewStyle>;
+}
+
+export interface ToastAction {
+  label: string;
+  onPress: () => void;
 }
 
 const KIND: Record<ToastKind, { icon: IconName; bg: 'okBg' | 'errBg' | 'infoBg' | 'warnBg'; fg: 'ok' | 'err' | 'info' | 'warn' }> = {
@@ -25,7 +32,7 @@ const KIND: Record<ToastKind, { icon: IconName; bg: 'okBg' | 'errBg' | 'infoBg' 
 };
 
 /** Aviso (M·09), presentacional. Para mostrarlo usa `useToast().show(...)`. */
-export function Toast({ kind = 'success', title, message, onClose, style }: ToastProps) {
+export function Toast({ kind = 'success', title, message, onClose, action, style }: ToastProps) {
   const { colors } = useTheme();
   const k = KIND[kind];
   return (
@@ -62,6 +69,27 @@ export function Toast({ kind = 'success', title, message, onClose, style }: Toas
           </Text>
         ) : null}
       </View>
+      {action ? (
+        <Pressable
+          onPress={action.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          hitSlop={4}
+          style={({ pressed }) => ({
+            minHeight: 40,
+            paddingHorizontal: 10,
+            marginTop: -4,
+            borderRadius: 8,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: pressed ? colors.brandSoft : 'transparent',
+          })}
+        >
+          <Text size={15} color="brandInk" style={{ fontFamily: fontFamily.semibold }}>
+            {action.label}
+          </Text>
+        </Pressable>
+      ) : null}
       {onClose ? (
         <Pressable
           onPress={onClose}
@@ -80,8 +108,10 @@ export interface ShowToastOptions {
   kind?: ToastKind;
   title: string;
   message?: string;
-  /** Milisegundos (default 3400; 0 = hasta cerrar). */
+  /** Milisegundos (default 3400, o 6000 si hay `action`; 0 = hasta cerrar). */
   duration?: number;
+  /** Botón de texto; al tocarlo se cierra el aviso y se llama `onPress`. */
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
@@ -103,7 +133,10 @@ export function ToastProvider({ children, topOffset = 8 }: { children: React.Rea
 
   const hide = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
-    Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => setToast(null));
+    Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
+      // Si otro show() interrumpió la salida, no borrar el aviso nuevo.
+      if (finished) setToast(null);
+    });
   }, [anim]);
 
   const show = useCallback(
@@ -112,7 +145,7 @@ export function ToastProvider({ children, topOffset = 8 }: { children: React.Rea
       setToast({ ...opts, id: Date.now() });
       anim.setValue(0);
       Animated.timing(anim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-      const d = opts.duration ?? 3400;
+      const d = opts.duration ?? (opts.action ? 6000 : 3400);
       if (d > 0) timer.current = setTimeout(hide, d);
     },
     [anim, hide],
@@ -146,6 +179,18 @@ export function ToastProvider({ children, topOffset = 8 }: { children: React.Rea
             title={toast.title}
             message={toast.message}
             onClose={hide}
+            action={
+              toast.action
+                ? {
+                    label: toast.action.label,
+                    onPress: () => {
+                      const run = toast.action?.onPress;
+                      hide();
+                      run?.();
+                    },
+                  }
+                : undefined
+            }
             style={{ width: '100%', maxWidth: 560 }}
           />
         </Animated.View>

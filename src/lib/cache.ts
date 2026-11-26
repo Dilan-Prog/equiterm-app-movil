@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearOfficialPdfs } from '../features/pdf/officialPdf';
 
 /**
  * Caché simple en AsyncStorage para uso sin conexión.
@@ -37,8 +38,17 @@ export async function removeCache(key: string): Promise<void> {
   }
 }
 
-/** Borra toda la caché (p. ej. al cerrar sesión). */
+/**
+ * Borra toda la caché (p. ej. al cerrar sesión o «Datos sin conexión → Borrar»
+ * en Perfil), incluidos los PDF oficiales guardados (son datos del cliente).
+ * Los PDF provisionales de la bandeja de salida (`local-*.pdf`) se conservan.
+ */
 export async function clearCache(): Promise<void> {
+  try {
+    clearOfficialPdfs();
+  } catch {
+    // ignorar
+  }
   try {
     const keys = await AsyncStorage.getAllKeys();
     const ours = keys.filter((k) => k.startsWith(PREFIX));

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import type { OutboxEntry } from '../../lib/outbox';
+import { canGenerateLocalPdf } from '../pdf/localPdf';
 import { fontFamily, useTheme } from '../../theme';
 import { Button, DialogFrame, Icon, StatusChip, Text } from '../../ui';
 import { entryIcon, entryTitle, formatBytes, relativeWhen, uiStatus } from './format';
@@ -21,17 +22,22 @@ function Row({ label, value }: { label: string; value?: string }) {
   );
 }
 
-/** Detalle de un elemento de la bandeja con acciones Reintentar / Eliminar. */
+/** Detalle de un elemento de la bandeja con acciones Ver PDF (reportes) / Reintentar / Eliminar. */
 export function OutboxDetailDialog({
   entry,
   onClose,
   onRetry,
   onDelete,
+  onViewPdf,
+  pdfLoading,
 }: {
   entry: OutboxEntry | null;
   onClose: () => void;
   onRetry: (e: OutboxEntry) => void;
   onDelete: (e: OutboxEntry) => void;
+  /** «Ver PDF» provisional; solo se muestra en reportes sin enviar. */
+  onViewPdf?: (e: OutboxEntry) => void;
+  pdfLoading?: boolean;
 }) {
   const { colors } = useTheme();
   if (!entry) return null;
@@ -58,6 +64,17 @@ export function OutboxDetailDialog({
           <Row label="Reintento" value={`Automático ${relativeWhen(entry.nextAttemptAt)}`} />
         ) : null}
       </View>
+      {onViewPdf && canGenerateLocalPdf(entry) && entry.status !== 'sending' ? (
+        <Button
+          title="Ver PDF provisional"
+          icon="picture_as_pdf"
+          variant="secondary"
+          loading={pdfLoading}
+          loadingTitle="Generando PDF…"
+          onPress={() => onViewPdf(entry)}
+          style={{ alignSelf: 'stretch', marginTop: 8 }}
+        />
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, alignSelf: 'stretch' }}>
         {entry.status !== 'sending' ? (
           <Button

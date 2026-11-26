@@ -1,12 +1,13 @@
-import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, Share, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, Share, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../api/client';
 import type { ReportDetail as ReportDetailData } from '../../api/types';
 import { useCachedFetch } from '../../hooks/useCachedFetch';
 import { useOnline } from '../../hooks/useOnline';
 import { cacheKeys } from '../../lib/cache';
+import { OfficialPdfError, OFFICIAL_PDF_MSG, PDF_NOT_SAVED_OFFLINE, useOfficialPdf } from '../pdf/officialPdf';
+import { openPdfViewer, sharePdf } from '../pdf/storage';
 import { useTheme } from '../../theme';
 import { Button, EmptyState, Header, Icon, IconButton, StatusChip, Text } from '../../ui';
 import { DetailSectionCard } from './components/DetailSectionCard';
@@ -37,27 +38,71 @@ export function ReportDetail({ id, initialFolio, variant = 'screen', onBack }: R
   const { data, loading, refreshing, error, fromCache, savedAt, refresh, reload } = useCachedFetch<ReportDetailData>(cacheKeys.report(id), fetcher);
   const vm = useMemo<ReportViewModel | null>(() => (data ? buildReportViewModel(data) : null), [data]);
   const [openingPdf, setOpeningPdf] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  // PDF oficial guardado en el teléfono. Se auto-guarda en segundo plano sólo
+  // cuando el detalle llegó del servidor (no de la caché): ahí `pdf_url` está vigente.
+  const freshFromServer = !!data && !loading && !refreshing && !fromCache;
+  const pdf = useOfficialPdf(data, { autoSave: freshFromServer && online !== false, refetch: fetcher });
+  const pdfSaved = !!pdf.uri;
 
   const folio = vm?.folio ?? initialFolio ?? 'Reporte';
   const pane = variant === 'pane';
 
-  const share = useCallback(() => {
+  const shareText = useCallback(() => {
     if (!vm) return;
     const lines = [`Reporte de servicio ${vm.folio}`, [vm.client, vm.title].filter(Boolean).join(' · '), vm.pdfUrl ?? ''].filter(Boolean);
     Share.share({ title: `Reporte ${vm.folio}`, message: lines.join('\n') }).catch(() => undefined);
   }, [vm]);
 
+  /** Comparte el archivo PDF (descargándolo si hace falta); si no se puede, comparte el texto con la URL. */
+  const share = useCallback(async () => {
+    if (!vm || sharing) return;
+    const canDownload = !!vm.pdfUrl && online !== false;
+    if (!pdf.uri && !canDownload) {
+      shareText();
+      return;
+    }
+    setSharing(true);
+    try {
+      const file = pdf.uri ? { uri: pdf.uri } : await pdf.ensure();
+      const ok = await sharePdf(file.uri, `Reporte ${vm.folio}`);
+      if (!ok) shareText();
+    } catch {
+      shareText();
+    } finally {
+      setSharing(false);
+    }
+  }, [vm, sharing, online, pdf, shareText]);
+
+  /** «Ver PDF»: abre el guardado (sin conexión) o lo descarga y abre. */
   const openPdf = useCallback(async () => {
-    if (!vm?.pdfUrl) return;
+    if (!vm || openingPdf) return;
+    const open = (uri: string) => openPdfViewer({ uri, title: vm.folio, subtitle: vm.client || undefined });
+    if (pdf.uri && !pdf.downloading) {
+      open(pdf.uri);
+      return;
+    }
+    if (online === false) {
+      if (pdf.uri) open(pdf.uri);
+      else Alert.alert('PDF no disponible sin conexión', PDF_NOT_SAVED_OFFLINE);
+      return;
+    }
     setOpeningPdf(true);
     try {
-      await WebBrowser.openBrowserAsync(vm.pdfUrl);
-    } catch {
-      Alert.alert('No se pudo abrir el PDF', 'Verifica tu conexión e inténtalo de nuevo.');
+      const file = await pdf.ensure();
+      open(file.uri);
+    } catch (e) {
+      const err = e instanceof OfficialPdfError ? e : null;
+      Alert.alert(
+        'No se pudo abrir el PDF',
+        err?.kind === 'network' ? `${OFFICIAL_PDF_MSG.network}\n\n${PDF_NOT_SAVED_OFFLINE}` : err?.message ?? OFFICIAL_PDF_MSG.network,
+      );
     } finally {
       setOpeningPdf(false);
     }
-  }, [vm]);
+  }, [vm, openingPdf, online, pdf]);
+
+  const pdfAvailable = pdfSaved || !!vm?.pdfUrl;
 
   /* Encabezado ------------------------------------------------------ */
   const header = pane ? (
@@ -81,14 +126,25 @@ export function ReportDetail({ id, initialFolio, variant = 'screen', onBack }: R
         <Text size={20} weight="bold" tabular numberOfLines={1} accessibilityRole="header">
           {folio}
         </Text>
+        {pdfSaved ? <OfflineBadge style={{ marginTop: 2 }} /> : null}
       </View>
-      <Button title="Compartir" variant="secondary" size="sm" icon="ios_share" block={false} disabled={!vm} onPress={share} style={{ height: 48, paddingHorizontal: 16 }} />
+      <Button
+        title="Compartir"
+        variant="secondary"
+        size="sm"
+        icon="ios_share"
+        block={false}
+        disabled={!vm}
+        loading={sharing}
+        onPress={share}
+        style={{ height: 48, paddingHorizontal: 16 }}
+      />
       <Button
         title="Ver PDF"
         size="sm"
         icon="picture_as_pdf"
         block={false}
-        disabled={!vm?.pdfUrl}
+        disabled={!pdfAvailable}
         loading={openingPdf}
         onPress={openPdf}
         style={{ height: 48, paddingHorizontal: 18 }}
@@ -100,7 +156,7 @@ export function ReportDetail({ id, initialFolio, variant = 'screen', onBack }: R
       title={folio}
       subtitle={vm?.client || undefined}
       onBack={onBack}
-      right={<IconButton icon="ios_share" accessibilityLabel="Compartir reporte" onPress={share} disabled={!vm} />}
+      right={<IconButton icon="ios_share" accessibilityLabel="Compartir PDF del reporte" onPress={share} disabled={!vm || sharing} />}
     />
   );
 
@@ -149,45 +205,66 @@ export function ReportDetail({ id, initialFolio, variant = 'screen', onBack }: R
       {!pane && vm ? (
         <View
           style={{
-            flexDirection: 'row',
-            gap: 10,
-            paddingTop: 12,
+            paddingTop: pdfSaved ? 8 : 12,
             paddingHorizontal: 16,
             paddingBottom: Math.max(insets.bottom, 12) + 4,
             backgroundColor: colors.card,
             borderTopWidth: 1,
             borderTopColor: colors.line,
+            gap: 8,
           }}
         >
-          <Pressable
-            onPress={share}
-            accessibilityRole="button"
-            accessibilityLabel="Compartir reporte"
-            style={({ pressed }) => ({
-              width: 56,
-              height: 56,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: pressed ? colors.linePressed : colors.line,
-              backgroundColor: pressed ? colors.soft : colors.card,
-              alignItems: 'center',
-              justifyContent: 'center',
-            })}
-          >
-            <Icon name="ios_share" size={24} />
-          </Pressable>
-          <Button
-            title="Ver PDF"
-            size="lg"
-            icon="picture_as_pdf"
-            loading={openingPdf}
-            loadingTitle="Abriendo PDF…"
-            disabled={!vm.pdfUrl}
-            onPress={openPdf}
-            style={{ flex: 1 }}
-          />
+          {pdfSaved ? <OfflineBadge style={{ alignSelf: 'center' }} /> : null}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={share}
+              disabled={sharing}
+              accessibilityRole="button"
+              accessibilityLabel="Compartir PDF del reporte"
+              accessibilityState={{ busy: sharing, disabled: sharing }}
+              style={({ pressed }) => ({
+                opacity: sharing ? 0.5 : 1,
+                width: 56,
+                height: 56,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: pressed ? colors.linePressed : colors.line,
+                backgroundColor: pressed ? colors.soft : colors.card,
+                alignItems: 'center',
+                justifyContent: 'center',
+              })}
+            >
+              <Icon name="ios_share" size={24} />
+            </Pressable>
+            <Button
+              title="Ver PDF"
+              size="lg"
+              icon="picture_as_pdf"
+              loading={openingPdf}
+              loadingTitle={pdfSaved ? 'Abriendo PDF…' : 'Descargando PDF…'}
+              disabled={!pdfAvailable}
+              onPress={openPdf}
+              style={{ flex: 1 }}
+            />
+          </View>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** «Disponible sin conexión»: el PDF oficial está guardado en el teléfono. */
+function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
+  return (
+    <View
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: 4 }, style]}
+      accessible
+      accessibilityLabel="PDF disponible sin conexión"
+    >
+      <Icon name="offline_pin" size={16} color="ok" />
+      <Text size={12} weight="medium" color="ok">
+        Disponible sin conexión
+      </Text>
     </View>
   );
 }

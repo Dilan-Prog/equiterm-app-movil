@@ -26,6 +26,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
+import { downloadOfficialPdf, type OfficialPdfSource } from '../features/pdf/officialPdf';
+import { deletePdf, localPdfFile } from '../features/pdf/storage';
 import { getApiBaseUrl, getServerUrl } from './config';
 
 /* ------------------------------------------------------------------ */
@@ -318,7 +320,11 @@ export function loadOutbox(): Promise<void> {
       // Puede haber items encolados mientras se cargaba.
       const existing = new Set(items.map((i) => i.id));
       const merged = [...items, ...snapshot.items.filter((i) => !existing.has(i.id))];
-      snapshot = { ...snapshot, items: pruneSent(merged), loaded: true };
+      const kept = pruneSent(merged);
+      // Enviados que caducan de la bandeja: borrar su PDF provisional si quedó.
+      const keptIds = new Set(kept.map((i) => i.id));
+      for (const i of merged) if (!keptIds.has(i.id)) deletePdf(localPdfFile(i.id));
+      snapshot = { ...snapshot, items: kept, loaded: true };
       emit();
       persist();
       scheduleRetry();
@@ -430,6 +436,7 @@ export async function removeOutboxItem(id: string): Promise<void> {
   if (!item) return;
   if (item.status === 'sending') currentXhr.get(id)?.abort();
   safeDelete(new Directory(outboxDir(), id));
+  deletePdf(localPdfFile(id)); // PDF provisional generado en el teléfono
   setItems(snapshot.items.filter((i) => i.id !== id));
   await writeChain;
 }
@@ -437,6 +444,8 @@ export async function removeOutboxItem(id: string): Promise<void> {
 /** Quita de la lista los ya enviados. */
 export async function clearSent(): Promise<void> {
   await loadOutbox();
+  // PDF provisionales de los enviados (normalmente ya se borraron al enviarse).
+  for (const i of snapshot.items) if (i.status === 'sent') deletePdf(localPdfFile(i.id));
   setItems(snapshot.items.filter((i) => i.status !== 'sent'));
 }
 
@@ -642,6 +651,9 @@ async function doFlush(opts: FlushOptions): Promise<FlushResult> {
       });
       // Ya está en el servidor: liberar espacio.
       safeDelete(new Directory(outboxDir(), id));
+      // PDF: guardar el oficial y descartar el provisional (en segundo plano;
+      // un fallo aquí no cambia el estado «enviado»).
+      onReportSent(item, out.data);
       result.sent++;
       continue;
     }
@@ -683,6 +695,28 @@ async function doFlush(opts: FlushOptions): Promise<FlushResult> {
     if (stop) break;
   }
   return finish();
+}
+
+/**
+ * Enganche PDF al enviarse un reporte (`endpoint: '/reportes'`): la respuesta
+ * trae `{ data: { id, folio, pdf_url, updated_at, is_signed, ... } }`.
+ * Descarga en segundo plano el PDF oficial a `officialPdfFile(data.id)` y,
+ * sólo si eso funciona, borra el provisional `localPdfFile(entry.id)` (así,
+ * si falla, el provisional sigue disponible en la bandeja). Nunca lanza.
+ */
+function onReportSent(item: OutboxEntry, response: unknown) {
+  try {
+    if (item.endpoint.replace(/\/+$/, '') !== '/reportes') return;
+    const data =
+      response && typeof response === 'object' ? (response as { data?: unknown }).data : undefined;
+    const report = data && typeof data === 'object' ? (data as OfficialPdfSource) : null;
+    if (!report || report.id === undefined || report.id === null || !report.pdf_url) return;
+    void downloadOfficialPdf(report.id, report.pdf_url, report)
+      .then(() => deletePdf(localPdfFile(item.id)))
+      .catch(() => undefined);
+  } catch {
+    // ignorar: el envío ya quedó registrado
+  }
 }
 
 function scheduleRetry() {

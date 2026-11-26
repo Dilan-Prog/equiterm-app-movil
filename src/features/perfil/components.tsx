@@ -89,6 +89,12 @@ export function appVersion(): string {
   return build != null && build !== '' ? `${version} (${build})` : version;
 }
 
+/** Bytes → "0.4 MB" · "12 MB". */
+export function formatMb(bytes: number): string {
+  const mb = Math.max(0, bytes) / (1024 * 1024);
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+}
+
 /** "Hoy, 11:32" · "Ayer, 18:05" · "21 nov, 09:10". */
 export function formatSync(ts: number | null): string {
   if (!ts) return 'Sin sincronizar';

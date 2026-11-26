@@ -9,6 +9,19 @@ import { Text } from '../atoms/Text';
 
 export type OutboxItemStatus = 'pending' | 'sending' | 'sent' | 'failed';
 
+/** Acción secundaria de la fila (p. ej. «Ver PDF»). No se muestra mientras `sending`. */
+export interface OutboxItemAction {
+  label: string;
+  icon?: IconName;
+  onPress: () => void;
+  /** Muestra el indicador de carga en el botón (y lo desactiva). */
+  loading?: boolean;
+  /** Texto mientras `loading` (default: `label`). */
+  loadingLabel?: string;
+  disabled?: boolean;
+  accessibilityLabel?: string;
+}
+
 export interface OutboxItemProps {
   /** "Reporte EQ-2026-0421". */
   title: string;
@@ -22,6 +35,8 @@ export interface OutboxItemProps {
   /** Ícono del cuadro (default `description`; fotos `photo_library`, firma `signature`). */
   icon?: IconName;
   onRetry?: () => void;
+  /** Acción secundaria genérica (botón chico bajo la fila), p. ej. «Ver PDF». */
+  action?: OutboxItemAction;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -29,7 +44,7 @@ export interface OutboxItemProps {
 const LABEL: Record<OutboxItemStatus, string> = { pending: 'Pendiente', sending: 'Enviando', sent: 'Enviado', failed: 'Error' };
 
 /** Elemento de bandeja (O·06): Pendiente · Enviando (barra) · Enviado · Error (mensaje + Reintentar). */
-export function OutboxItem({ title, subtitle, status, progress = 0, errorMessage, icon = 'description', onRetry, onPress, style }: OutboxItemProps) {
+export function OutboxItem({ title, subtitle, status, progress = 0, errorMessage, icon = 'description', onRetry, action, onPress, style }: OutboxItemProps) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -63,6 +78,22 @@ export function OutboxItem({ title, subtitle, status, progress = 0, errorMessage
             </Text>
           </View>
           {onRetry ? <Button title="Reintentar" icon="refresh" variant="secondary" size="sm" block={false} onPress={onRetry} /> : null}
+        </View>
+      ) : null}
+      {action && status !== 'sending' ? (
+        <View style={{ flexDirection: 'row' }}>
+          <Button
+            title={action.label}
+            icon={action.icon}
+            variant="secondary"
+            size="sm"
+            block={false}
+            loading={action.loading}
+            loadingTitle={action.loadingLabel ?? action.label}
+            disabled={action.disabled}
+            accessibilityLabel={action.accessibilityLabel}
+            onPress={action.onPress}
+          />
         </View>
       ) : null}
     </Pressable>

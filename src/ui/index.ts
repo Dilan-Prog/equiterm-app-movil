@@ -28,7 +28,7 @@ export { ListRow, type ListRowProps } from './molecules/ListRow';
 export { DataRow, DataGrid, type DataRowProps, type DataGridProps } from './molecules/DataRow';
 export { StepIndicator, type StepIndicatorProps } from './molecules/StepIndicator';
 export { AccessCard, type AccessCardProps } from './molecules/AccessCard';
-export { Toast, ToastProvider, useToast, type ToastProps, type ToastKind, type ShowToastOptions } from './molecules/Toast';
+export { Toast, ToastProvider, useToast, type ToastProps, type ToastKind, type ToastAction, type ShowToastOptions } from './molecules/Toast';
 export {
   ConnectionBanner,
   useConnectionBanner,
@@ -43,7 +43,7 @@ export { Header, type HeaderProps, type HeaderAction } from './organisms/Header'
 export { SideMenu, type SideMenuProps, type SideMenuItem } from './organisms/SideMenu';
 export { ReportCard, type ReportCardProps } from './organisms/ReportCard';
 export { ServiceCard, type ServiceCardProps } from './organisms/ServiceCard';
-export { OutboxItem, type OutboxItemProps, type OutboxItemStatus } from './organisms/OutboxItem';
+export { OutboxItem, type OutboxItemAction, type OutboxItemProps, type OutboxItemStatus } from './organisms/OutboxItem';
 export { ConfirmDialog, DialogFrame, type ConfirmDialogProps } from './organisms/ConfirmDialog';
 export { InactivityDialog, type InactivityDialogProps } from './organisms/InactivityDialog';
 export { SignaturePad, type SignaturePadProps, type SignatureResult } from './organisms/SignaturePad';

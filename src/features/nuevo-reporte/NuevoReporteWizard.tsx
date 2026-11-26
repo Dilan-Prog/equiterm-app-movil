@@ -4,7 +4,9 @@ import { BackHandler, KeyboardAvoidingView, Platform, ScrollView, View, type Scr
 import { useAuth } from '../../context/AuthContext';
 import { useOutbox as useOutboxContext } from '../../context/OutboxContext';
 import { useResponsive } from '../../hooks/useResponsive';
-import { enqueue } from '../../lib/outbox';
+import { enqueue, getOutboxSnapshot } from '../../lib/outbox';
+import { canGenerateLocalPdf } from '../pdf/localPdf';
+import { useLocalReportPdf } from '../pdf/useLocalReportPdf';
 import { useTheme } from '../../theme';
 import { Button, ConfirmDialog, Header, ScreenFooter, SectionLoader, StepIndicator, useToast } from '../../ui';
 import { InfoBanner } from './components';
@@ -26,6 +28,7 @@ export function NuevoReporteWizard() {
   const toast = useToast();
   const { user } = useAuth();
   const outboxCtx = useOutboxContext();
+  const localPdf = useLocalReportPdf();
   const [draft, setDraft] = useState<ReportDraft>(emptyDraft);
   const [loaded, setLoaded] = useState(false);
   const [errors, setErrors] = useState<StepErrors>({});
@@ -144,7 +147,7 @@ export function NuevoReporteWizard() {
       await saveDraftNow(draft); // por si algo falla abajo
       const capturedAt = new Date().toISOString();
       const firmaUri = await writeSignatureSvg(draft.firma.path, draft.firma.width, draft.firma.height);
-      await enqueue({
+      const entry = await enqueue({
         type: 'service_report.create',
         endpoint: '/reportes',
         method: 'POST',
@@ -159,7 +162,20 @@ export function NuevoReporteWizard() {
       finished.current = true;
       await clearDraft();
       void outboxCtx.refresh();
-      toast.show({ kind: 'success', title: 'Reporte guardado en el teléfono', message: 'Se enviará automáticamente cuando haya internet.' });
+      toast.show({
+        kind: 'success',
+        title: 'Reporte guardado en el teléfono',
+        message: 'Se enviará automáticamente cuando haya internet.',
+        action: {
+          label: 'Ver PDF',
+          onPress: () => {
+            // Si ya se envió, sus fotos se borraron del teléfono: el PDF oficial está en Reportes.
+            const live = getOutboxSnapshot().items.find((i) => i.id === entry.id);
+            if (live && canGenerateLocalPdf(live)) void localPdf.open(live, { announce: true });
+            else toast.show({ kind: 'info', title: 'El reporte ya se envió', message: 'Ábrelo desde Reportes para ver el PDF oficial.' });
+          },
+        },
+      });
       router.dismissTo('/bandeja');
     } catch (e) {
       setSaving(false);

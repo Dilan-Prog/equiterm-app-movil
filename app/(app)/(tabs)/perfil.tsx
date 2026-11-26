@@ -1,9 +1,10 @@
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useOutbox } from '../../../src/context/OutboxContext';
-import { SectionLabel, SettingRow, SettingsCard, appVersion, formatSync, useLastSync } from '../../../src/features/perfil/components';
+import { getOfficialPdfsUsage } from '../../../src/features/pdf/officialPdf';
+import { SectionLabel, SettingRow, SettingsCard, appVersion, formatMb, formatSync, useLastSync } from '../../../src/features/perfil/components';
 import { useOnline } from '../../../src/hooks/useOnline';
 import { useResponsive } from '../../../src/hooks/useResponsive';
 import { cacheKeys, clearCache, setCache } from '../../../src/lib/cache';
@@ -24,6 +25,9 @@ export default function PerfilScreen() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
+  // PDF oficiales guardados para ver sin conexión (se borran junto con la caché).
+  const [pdfUsage, setPdfUsage] = useState(() => getOfficialPdfsUsage());
+  useFocusEffect(useCallback(() => setPdfUsage(getOfficialPdfsUsage()), []));
 
   const role = user?.role?.name || (user?.is_admin ? 'Administrador' : 'Sin rol');
   const server = getServerUrl();
@@ -35,6 +39,7 @@ export default function PerfilScreen() {
       // Conservar el usuario para poder abrir la app sin conexión.
       if (user) await setCache(cacheKeys.user, user);
       reloadSync();
+      setPdfUsage(getOfficialPdfsUsage());
       toast.show({ kind: 'success', title: 'Datos guardados borrados', message: 'Se descargarán de nuevo al abrir cada sección.' });
     } finally {
       setClearing(false);
@@ -129,7 +134,11 @@ export default function PerfilScreen() {
           <SettingRow
             icon="cloud_download"
             title="Datos sin conexión"
-            subtitle="Reportes y agenda guardados en el teléfono"
+            subtitle={
+              pdfUsage.count
+                ? `Reportes, agenda y ${pdfUsage.count} PDF (${formatMb(pdfUsage.bytes)}) guardados en el teléfono`
+                : 'Reportes y agenda guardados en el teléfono'
+            }
             value={<Button title="Borrar" variant="secondary" size="sm" block={false} onPress={() => setConfirmClear(true)} />}
           />
           <SettingRow icon="info" title="Versión de la app" value={appVersion()} divider={false} />
@@ -141,7 +150,7 @@ export default function PerfilScreen() {
       <ConfirmDialog
         visible={confirmClear}
         title="¿Borrar datos guardados?"
-        message="Se borrarán los reportes y la agenda guardados para usar sin conexión. Tus borradores y la bandeja de salida se conservan."
+        message="Se borrarán los reportes, sus PDF y la agenda guardados para usar sin conexión. Tus borradores y la bandeja de salida se conservan."
         icon="delete"
         confirmLabel="Borrar"
         loading={clearing}
